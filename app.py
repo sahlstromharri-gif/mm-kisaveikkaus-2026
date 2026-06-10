@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import requests
 
 st.set_page_config(page_title="MM-kisaveikkaus 2026", page_icon="⚽", layout="wide")
 
@@ -12,9 +13,6 @@ sheet_id = "1_RR17zfJg95AT6D0hlUJ74kMr-6-6VrOEmZuUeRwLyI"
 # Lukutavat Google Sheetsistä CSV-muodossa
 url_ottelut = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Ottelut"
 url_veikkaukset = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Veikkaukset"
-
-# Alustetaan virallinen yhteysalusta tallennusta varten
-conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Luetaan ottelut livenä
 try:
@@ -101,17 +99,22 @@ with tab1:
             tallenna = st.form_submit_button("Tallenna kaikki veikkaukset pilveen")
             
             if tallenna:
-                # Poistetaan tämän pelaajan vanhat rivit alta, jotta ei tule tuplarivejä
-                if not df_veikkaukset.empty:
-                    df_veikkaukset = df_veikkaukset[df_veikkaukset["Pelaaja"] != pelaaja]
-                
                 df_uusi = pd.DataFrame(uudet_veikkaukset)
-                df_lopullinen = pd.concat([df_veikkaukset, df_uusi], ignore_index=True)
                 
                 try:
-                    # Tallennetaan pilveen virallisen ja suojatun Cloud-yhteyden kautta
-                    conn.update(worksheet="Veikkaukset", data=df_lopullinen)
+                    # TÄHÄN SE GOOGLESTA KOPIOITU URli
+                    web_app_url = "https://script.google.com/macros/s/AKfycbzEipQ_U9yU6_d6tpslXralZnMdnRlPZcqBsg3nadxtLYNl4b-DJZWDFIl9R3LvEkjT/exec"
+                    
+                    with st.spinner("Tallennetaan veikkauksia..."):
+                        for idx, rivi in df_uusi.iterrows():
+                            requests.post(web_app_url, json={
+                                "Pelaaja": pelaaja,
+                                "Ottelu_ID": int(rivi["Ottelu_ID"]),
+                                "Koti_Veikkaus": int(rivi["Koti_Veikkaus"]),
+                                "Vieras_Veikkaus": int(rivi["Vieras_Veikkaus"])
+                            })
+                    
                     st.success("Veikkauksesi tallennettiin onnistuneesti Google Sheetsiin!")
                     st.balloons()
                 except Exception as e:
-                    st.error(f"Tallennus epäonnistui. Virheilmoitus: {e}")
+                    st.error(f"Tallennus epäonnistui: {e}")
