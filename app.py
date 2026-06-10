@@ -9,15 +9,14 @@ st.title("⚽ MM-kisaveikkaus 2026")
 # --- TIETOKANTAYHTEYS ---
 sheet_id = "1_RR17zfJg95AT6D0hlUJ74kMr-6-6VrOEmZuUeRwLyI"
 
-# Varma lukutapa, joka toimi aiemmin ilman 400/404-virheitä
+# Lukutavat Google Sheetsistä CSV-muodossa
 url_ottelut = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Ottelut"
 url_veikkaukset = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Veikkaukset"
 
-# Virallinen URL tallennusta varten (Streamlit Community Cloudia varten)
-sheet_url_tallennus = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+# Alustetaan virallinen yhteysalusta tallennusta varten
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Luetaan ottelut livenä Pandasilla
+# Luetaan ottelut livenä
 try:
     df_ottelut = pd.read_csv(url_ottelut)
     df_ottelut.columns = [c.strip() for c in df_ottelut.columns]
@@ -26,10 +25,10 @@ try:
     df_ottelut["Oikea_Koti"] = pd.to_numeric(df_ottelut["Oikea_Koti"], errors='coerce')
     df_ottelut["Oikea_Vieras"] = pd.to_numeric(df_ottelut["Oikea_Vieras"], errors='coerce')
 except Exception as e:
-    st.error(f"Virhe ladattaessa otteluita Sheetsistä. Virhe: {e}")
+    st.error(f"Virhe ladattaessa otteluita Sheetsistä: {e}")
     st.stop()
 
-# Luetaan vanhat veikkaukset livenä Pandasilla
+# Luetaan vanhat veikkaukset livenä
 try:
     df_veikkaukset = pd.read_csv(url_veikkaukset)
     df_veikkaukset.columns = [c.strip() for c in df_veikkaukset.columns]
@@ -102,6 +101,7 @@ with tab1:
             tallenna = st.form_submit_button("Tallenna kaikki veikkaukset pilveen")
             
             if tallenna:
+                # Poistetaan tämän pelaajan vanhat rivit alta, jotta ei tule tuplarivejä
                 if not df_veikkaukset.empty:
                     df_veikkaukset = df_veikkaukset[df_veikkaukset["Pelaaja"] != pelaaja]
                 
@@ -109,10 +109,9 @@ with tab1:
                 df_lopullinen = pd.concat([df_veikkaukset, df_uusi], ignore_index=True)
                 
                 try:
-                    # Tallennetaan pilveen virallisen palikan kautta
-                    conn.update(spreadsheet=sheet_url_tallennus, worksheet="Veikkaukset", data=df_lopullinen)
+                    # Tallennetaan pilveen virallisen ja suojatun Cloud-yhteyden kautta
+                    conn.update(worksheet="Veikkaukset", data=df_lopullinen)
                     st.success("Veikkauksesi tallennettiin onnistuneesti Google Sheetsiin!")
                     st.balloons()
                 except Exception as e:
-                    # Jos testaat paikallisesti ilman Service Accountia, tämä estää kaatumisen ja antaa ohjeen
-                    st.info("Koodi on valmis! Paikallisessa testissä tallennus antaa suojatun virheen, mutta kun viet tämän nettiin Streamlit Community Cloudiin, tallennus toimii suoraan asetettavien Secretsien ansiosta.")
+                    st.error(f"Tallennus epäonnistui. Virheilmoitus: {e}")
